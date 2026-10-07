@@ -32,17 +32,25 @@ fn command_property(value: &str) -> String {
     command_data(value).replace(':', "%3A").replace(',', "%2C")
 }
 fn uri(path: &str) -> String {
+    let drive = path.as_bytes().first().is_some_and(u8::is_ascii_alphabetic)
+        && path.as_bytes().get(1) == Some(&b':')
+        && path.as_bytes().get(2) == Some(&b'/');
     let encoded: String = path
         .bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+        .enumerate()
+        .map(|(i, b)| {
+            if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) || (drive && i == 1) {
                 (b as char).to_string()
             } else {
                 format!("%{b:02X}")
             }
         })
         .collect();
-    if path.starts_with('/') {
+    if drive {
+        format!("file:///{encoded}")
+    } else if path.starts_with("//") {
+        format!("file:{encoded}")
+    } else if path.starts_with('/') {
         format!("file://{encoded}")
     } else {
         encoded

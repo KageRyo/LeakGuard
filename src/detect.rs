@@ -118,7 +118,7 @@ struct Candidate<'a> {
 }
 
 pub fn detect(path: &str, text: &str) -> Vec<Finding> {
-    let mut findings = Vec::new();
+    let mut findings: Vec<Finding> = Vec::new();
     for (line_index, line) in text.lines().enumerate() {
         let mut contexts = Vec::new();
         for caps in CONTEXT.captures_iter(line) {
@@ -183,9 +183,17 @@ pub fn detect(path: &str, text: &str) -> Vec<Finding> {
         }
         // Stronger recognized rules own overlapping contextual candidates.
         candidates.sort_by_key(|c| (std::cmp::Reverse(c.base), c.start));
-        let mut accepted: Vec<(usize, usize)> = Vec::new();
+        let mut accepted: Vec<(usize, usize, usize)> = Vec::new();
         for c in candidates {
-            if accepted.iter().any(|&(s, e)| s < c.end && c.start < e) {
+            if let Some(&(_, _, index)) =
+                accepted.iter().find(|&&(s, e, _)| s < c.end && c.start < e)
+            {
+                if c.id != "context-credential" {
+                    let reason = format!("matched {} pattern", c.id);
+                    if !findings[index].reasons.contains(&reason) {
+                        findings[index].reasons.push(reason);
+                    }
+                }
                 continue;
             }
             let mut score = c.base;
@@ -210,7 +218,7 @@ pub fn detect(path: &str, text: &str) -> Vec<Finding> {
             if c.id == "context-credential" && score < 40 {
                 continue;
             }
-            accepted.push((c.start, c.end));
+            accepted.push((c.start, c.end, findings.len()));
             findings.push(Finding {
                 rule_id: c.id.into(),
                 name: c.name.into(),

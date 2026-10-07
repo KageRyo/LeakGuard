@@ -123,3 +123,12 @@ fn common_prefixed_environment_credentials_have_context() {
         assert_eq!(f[0].score, 60);
     }
 }
+
+#[test]
+fn overlapping_known_rules_preserve_each_pattern_reason() {
+    let input = format!("postgres://alice:{}@db/app", github());
+    let f = detect("a.txt", &input);
+    assert_eq!(f.len(), 1);
+    assert!(f[0].reasons.iter().any(|r| r.contains("database-url")));
+    assert!(f[0].reasons.iter().any(|r| r.contains("github-token")));
+}
