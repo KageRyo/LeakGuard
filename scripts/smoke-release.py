@@ -15,7 +15,9 @@ if len(expected) != 1 or hashlib.sha256(archive.read_bytes()).hexdigest() != exp
     raise SystemExit("Release checksum mismatch")
 name = "leakguard.exe" if archive.suffix == ".zip" else "leakguard"
 with tempfile.TemporaryDirectory() as directory:
-    root = Path(directory)
+    # macOS exposes its temporary directory through /var -> /private/var.
+    # The scanner intentionally rejects linked ancestors; use the real fixture path.
+    root = Path(directory).resolve()
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as bundle:
             if bundle.namelist() != [name]:
@@ -38,5 +40,5 @@ with tempfile.TemporaryDirectory() as directory:
     for path, code in [("clean.txt", 0), ("secret.txt", 1), ("missing.txt", 2)]:
         result = subprocess.run([str(binary), "scan", str(root / path)], capture_output=True, text=True)
         if result.returncode != code or canary in result.stdout + result.stderr:
-            raise SystemExit("Extracted binary scan/redaction smoke failed")
+            raise SystemExit(f"Extracted binary scan/redaction smoke failed ({path}: expected exit {code}, got {result.returncode})")
 print(f"Archive checksum, version, exit 0/1/2 and redaction: PASS ({archive.name})")
