@@ -1,5 +1,7 @@
 # LeakGuard
 
+[![CI](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml/badge.svg?branch=feat%2Fleakguard-v0.1)](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml?query=branch%3Afeat%2Fleakguard-v0.1) [![License](https://img.shields.io/github/license/KageRyo/LeakGuard.svg)](LICENSE)
+
 Lightweight secret & credential leakage guard for CI pipelines.
 
 LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and
