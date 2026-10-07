@@ -90,6 +90,30 @@ class ActionIntegration(unittest.TestCase):
                 self.assertEqual(self.run_action(**inputs).returncode, 2)
     def test_unsupported_runner_fails(self):
         self.assertEqual(self.run_action(RUNNER_OS="Windows").returncode, 2)
+    def test_diff_mode_uses_merge_base_for_diverged_pr(self):
+        def git(*args):
+            subprocess.run(["git", *args], cwd=self.path, check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        git("config", "user.name", "Smoke")
+        git("config", "user.email", "smoke@example.invalid")
+        (self.path / "existing.txt").write_text(TOKEN)
+        git("add", ".")
+        git("commit", "-qm", "base")
+        git("checkout", "-qb", "pr")
+        (self.path / "new.log").write_text("Authorization: Bearer " + TOKEN)
+        git("add", ".")
+        git("commit", "-qm", "PR addition")
+        git("checkout", "-q", "main")
+        (self.path / "existing.txt").write_text("removed upstream")
+        git("add", ".")
+        git("commit", "-qm", "upstream removal")
+        git("checkout", "-q", "pr")
+        result = self.run_action(INPUT_PATHS="", INPUT_MODE="diff", INPUT_BASE="main")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        findings = json.loads(result.stdout)["findings"]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["path"], "new.log")
+        self.assertNotIn(TOKEN, result.stdout + result.stderr)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
