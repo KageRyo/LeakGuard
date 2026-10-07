@@ -1,0 +1,49 @@
+name: LeakGuard Credential Leakage Guard
+description: Detect potential credentials in source, logs, configs and artifacts with redacted reports
+author: KageRyo
+branding:
+  icon: shield
+  color: red
+inputs:
+  paths:
+    description: Newline-separated literal paths; includes ignored and untracked text files
+    required: false
+    default: ''
+  mode:
+    description: Git mode (tracked, staged, history, diff); paths require tracked mode
+    required: false
+    default: tracked
+  base:
+    description: Fetched base revision for diff mode
+    required: false
+    default: ''
+  fail-on:
+    description: Minimum confidence to fail (high, medium, low)
+    required: false
+    default: high
+  format:
+    description: Report format (annotations, text, json, sarif)
+    required: false
+    default: annotations
+  output:
+    description: Optional report destination; default is stdout
+    required: false
+    default: ''
+  max-file-bytes:
+    description: Maximum file size to scan in bytes
+    required: false
+    default: '10485760'
+runs:
+  using: composite
+  steps:
+    - name: Verify and run LeakGuard
+      shell: bash
+      env:
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_MAX_FILE_BYTES: ${{ inputs.max-file-bytes }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/leakguard-action.sh"
