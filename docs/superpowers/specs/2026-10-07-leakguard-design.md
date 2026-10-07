@@ -62,9 +62,11 @@ leakguard scan --format annotations
   `.env`, `*.local`, logs, and artifact directories. Exclude `.git` internals;
   do not follow symlinks. Deduplicate overlapping inputs and order paths stably.
 - `--staged` reads index blobs, not working-tree copies; exclude staged deletions.
-- `--diff BASE` compares BASE with HEAD and scans added lines with their actual
+- `--diff BASE` compares `git merge-base BASE HEAD` with HEAD and scans added lines with their actual
   destination line numbers. Renames and binary changes are handled explicitly.
   Uncommitted changes require the default or staged mode.
+  If no shared ancestor is available, fail with exit 2 rather than falling back
+  to comparing BASE directly. This is the PR guard mode; tracked/history are audits.
 - `--history` scans text blobs reachable from HEAD, including credentials removed
   in later commits. Associate each historical finding with its commit and path;
   deduplicate repeated occurrences of an unchanged blob at the same path.

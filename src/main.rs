@@ -25,6 +25,7 @@ struct Args {
     staged: bool,
     #[arg(long)]
     history: bool,
+    /// Scan added lines from merge-base(BASE, HEAD) to HEAD; requires shared history.
     #[arg(long, value_name = "BASE")]
     diff: Option<String>,
     #[arg(long, value_enum, default_value = "high")]

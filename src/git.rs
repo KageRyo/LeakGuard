@@ -270,6 +270,12 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
     } else if let Some(base) = &options.diff {
         let base = revision(&root, base)?;
         let head = revision(&root, "HEAD")?;
+        let base = string(
+            git(&root, &["merge-base", &base, &head])
+                .map_err(|_| "cannot determine merge base; fetch shared history before scanning")?,
+        )?
+        .trim()
+        .to_owned();
         let bytes = git(
             &root,
             &[

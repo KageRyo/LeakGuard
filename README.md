@@ -1,6 +1,6 @@
 # LeakGuard
 
-[![CI](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml/badge.svg?branch=feat%2Fleakguard-v0.1)](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml?query=branch%3Afeat%2Fleakguard-v0.1) [![License](https://img.shields.io/github/license/KageRyo/LeakGuard.svg)](LICENSE)
+[![CI](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/KageRyo/LeakGuard?display_name=tag&sort=semver)](https://github.com/KageRyo/LeakGuard/releases) [![License](https://img.shields.io/github/license/KageRyo/LeakGuard.svg)](LICENSE)
 
 Lightweight secret & credential leakage guard for CI pipelines.
 
@@ -8,9 +8,9 @@ LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and
 artifacts for accidentally exposed credentials. It runs offline with no server,
 database, LLM, provider API calls, or sibling-project dependencies.
 
-**Development status:** v0.1.0 is implemented and locally validated. Release binaries and the
-`KageRyo/LeakGuard@v1` Action tag are not published yet. Examples using a release
-must wait for its publication; local source installation works now.
+**Version:** v0.1.0. Binary installation and the composite Action require the
+matching [GitHub release](https://github.com/KageRyo/LeakGuard/releases).
+The source installation below is available independently of release publication.
 
 ## Why LeakGuard?
 
@@ -35,7 +35,7 @@ leakguard --help
 ```sh
 leakguard scan                         # tracked working-tree files, including edits
 leakguard scan --staged                # index blobs, not working-tree copies
-leakguard scan --diff origin/main      # added lines in BASE..HEAD
+leakguard scan --diff origin/main      # PR additions: merge-base(BASE, HEAD) -> HEAD
 leakguard scan --history               # text blobs reachable from HEAD
 leakguard scan ./logs ./artifacts       # includes ignored and untracked files
 leakguard scan .env config.local
@@ -49,7 +49,11 @@ Git modes are mutually exclusive and cannot be combined with explicit paths.
 Default scans require a repository; outside Git, pass paths explicitly. Deleted
 tracked files are skipped. History covers HEAD-reachable commits, not every ref;
 shallow clones only cover fetched history and produce a warning. Fetch the base
-before a diff scan. History findings carry their commit ID. Repeated unchanged
+and shared history before a diff scan. `--diff BASE` compares the common ancestor
+from `git merge-base BASE HEAD` with HEAD, so credentials removed upstream but
+retained on a diverged PR branch are not mistaken for PR additions. No available
+merge base (including insufficient shallow history) is an error with exit 2.
+History findings carry their commit ID. Repeated unchanged
 blobs at the same path are scanned once. Diff scans inspect added lines only,
 retain destination line numbers, and exclude pure renames/deletions.
 
@@ -111,26 +115,38 @@ Windows/macOS users can run the CLI directly. Action inputs are passed as data,
 without shell evaluation. It preserves scanner exit codes and emits redacted
 annotations by default. It does not upload reports or request write permissions.
 
-Once a matching release and `v1` tag are published, consumer usage is:
+Use **diff mode for a pull request gate**, with the PR head checked out and its
+base commit fetched. Tracked mode is a full working-tree audit; history mode is
+for investigating HEAD-reachable historical exposure. The default CLI/Action
+mode remains tracked for explicit full-repository scans.
+
+After the matching release is published:
 
 ```yaml
+name: Credential leakage guard
+on: pull_request
 permissions:
   contents: read
-steps:
-  - uses: actions/checkout@v4
-    with:
-      fetch-depth: 0 # needed for complete history or a fetched diff base
-  - uses: KageRyo/LeakGuard@v1 # planned; not yet published
-    with:
-      mode: tracked # tracked, staged, history or diff
-      fail-on: high
+jobs:
+  leakguard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: KageRyo/LeakGuard@v0.1.0
+        with:
+          mode: diff
+          base: ${{ github.event.pull_request.base.sha }}
+          fail-on: high
 ```
 
 For ignored/generated artifacts use newline-separated `paths` (no glob or shell
 expansion):
 
 ```yaml
-  - uses: KageRyo/LeakGuard@v1 # planned; not yet published
+  - uses: KageRyo/LeakGuard@v0.1.0
     with:
       paths: |
         ./logs
@@ -144,6 +160,8 @@ expansion):
 ```
 
 The optional upload requires `security-events: write` in the consuming workflow.
+Use `@v1` to follow the v1 Action series after that major tag is created; pin
+`@v0.1.0` for the versioned release shown above.
 Only use `if: always()` when the report was actually produced; input/download
 errors may leave no report. `mode: diff` requires `base`; combine explicit paths
 only with the default tracked mode. `max-file-bytes` defaults to 10485760.

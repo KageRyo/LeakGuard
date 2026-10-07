@@ -305,3 +305,69 @@ fn pure_rename_does_not_report_existing_secret() {
     assert_eq!(o.status.code(), Some(0));
     assert!(json(&o)["findings"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn divergent_base_removal_does_not_make_retained_credential_a_pr_addition() {
+    let d = repo();
+    fs::write(d.path().join("existing.txt"), token()).unwrap();
+    commit(d.path());
+    let main = git(d.path(), &["branch", "--show-current"]);
+    git(d.path(), &["checkout", "-qb", "pr"]);
+    fs::write(d.path().join("pr.txt"), "safe change\n").unwrap();
+    commit(d.path());
+    git(d.path(), &["checkout", "-q", &main]);
+    fs::write(
+        d.path().join("existing.txt"),
+        "credential removed upstream\n",
+    )
+    .unwrap();
+    commit(d.path());
+    git(d.path(), &["checkout", "-q", "pr"]);
+    let o = run(d.path(), &["--diff", &main]);
+    assert_eq!(o.status.code(), Some(0));
+    assert!(json(&o)["findings"].as_array().unwrap().is_empty());
+    assert_eq!(json(&o)["scanned_files"], 1);
+}
+
+#[test]
+fn divergent_base_still_detects_credentials_introduced_by_pr() {
+    let d = repo();
+    fs::write(d.path().join("existing.txt"), token()).unwrap();
+    commit(d.path());
+    let main = git(d.path(), &["branch", "--show-current"]);
+    git(d.path(), &["checkout", "-qb", "pr"]);
+    let new_token = format!("ghs_{}", "Z9x8C7v6B5n4M3a2S1d0F9g8H7j6K5l4P3q2R1s0");
+    fs::write(d.path().join("pr.txt"), format!("safe\n{new_token}\n")).unwrap();
+    commit(d.path());
+    git(d.path(), &["checkout", "-q", &main]);
+    fs::write(
+        d.path().join("existing.txt"),
+        "credential removed upstream\n",
+    )
+    .unwrap();
+    commit(d.path());
+    git(d.path(), &["checkout", "-q", "pr"]);
+    let o = run(d.path(), &["--diff", &main]);
+    assert_eq!(o.status.code(), Some(1));
+    let r = json(&o);
+    assert_eq!(r["findings"].as_array().unwrap().len(), 1);
+    assert_eq!(r["findings"][0]["path"], "pr.txt");
+    assert_eq!(r["findings"][0]["line"], 2);
+    assert!(!String::from_utf8_lossy(&o.stdout).contains(&new_token));
+}
+
+#[test]
+fn unrelated_history_has_no_merge_base_and_fails_closed() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), "safe").unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    git(d.path(), &["checkout", "--orphan", "unrelated"]);
+    git(d.path(), &["rm", "-rf", "."]);
+    fs::write(d.path().join("b.txt"), "safe").unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(!String::from_utf8_lossy(&o.stderr).contains(&base));
+    assert!(o.stdout.is_empty());
+}
