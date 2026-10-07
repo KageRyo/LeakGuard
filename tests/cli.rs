@@ -131,3 +131,29 @@ fn workflow_commands_cannot_be_injected_by_paths() {
             .contains("%0A")
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn literal_backslash_in_filename_preserves_report_location() {
+    let d = tempdir().unwrap();
+    let name = "literal\\name.txt";
+    fs::write(d.path().join(name), token()).unwrap();
+    let o = run(d.path(), &["scan", name, "--format", "json"]);
+    assert_eq!(o.status.code(), Some(1));
+    let r: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(r["findings"][0]["path"], name);
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_directory_ancestors_are_skipped() {
+    let d = tempdir().unwrap();
+    fs::create_dir(d.path().join("real")).unwrap();
+    fs::write(d.path().join("real/a.txt"), token()).unwrap();
+    std::os::unix::fs::symlink("real", d.path().join("link")).unwrap();
+    let o = run(d.path(), &["scan", "link/a.txt", "--format", "json"]);
+    assert_eq!(o.status.code(), Some(0));
+    let r: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(r["scanned_files"], 0);
+    assert_eq!(r["skipped"][0]["reason"], "symlink");
+}

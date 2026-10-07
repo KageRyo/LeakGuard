@@ -140,29 +140,19 @@ fn read_entry(
     add_bytes(report, &e.path, &bytes, limit, commit, lines);
     Ok(())
 }
-fn added_lines(
-    root: &Path,
-    base: &str,
-    head: &str,
-    source: Option<&str>,
-    path: &str,
-) -> Result<BTreeSet<usize>, String> {
+fn added_lines(root: &Path, old_oid: &str, new_oid: &str) -> Result<BTreeSet<usize>, String> {
     let mut c = command(root);
     c.args([
         "diff",
         "--no-ext-diff",
         "--no-textconv",
-        "--find-renames",
+        "--text",
         "--unified=0",
+        "--inter-hunk-context=0",
         "--no-color",
-        base,
-        head,
-        "--",
+        old_oid,
+        new_oid,
     ]);
-    if let Some(source) = source {
-        c.arg(source);
-    }
-    c.arg(path);
     let mut child = c
         .stdout(Stdio::piped())
         .spawn()
@@ -175,11 +165,7 @@ fn added_lines(
     let result = (|| -> Result<(), String> {
         loop {
             buffer.clear();
-            if reader
-                .read_until(b'\n', &mut buffer)
-                .map_err(|_| "cannot read Git diff")?
-                == 0
-            {
+            if !line_prefix(&mut reader, &mut buffer).map_err(|_| "cannot read Git diff")? {
                 break;
             }
             if buffer.starts_with(b"@@ ") {
@@ -208,11 +194,30 @@ fn added_lines(
     }
     Ok(selected)
 }
+// Keep only the header prefix, draining long credential-bearing patch lines in
+// fixed-size chunks. A large BASE line must not defeat the HEAD input limit.
+fn line_prefix(reader: &mut impl BufRead, prefix: &mut Vec<u8>) -> std::io::Result<bool> {
+    let mut consumed_any = false;
+    loop {
+        let bytes = reader.fill_buf()?;
+        if bytes.is_empty() {
+            return Ok(consumed_any);
+        }
+        consumed_any = true;
+        let end = bytes.iter().position(|&b| b == b'\n').map(|i| i + 1);
+        let count = end.unwrap_or(bytes.len());
+        let retain = count.min(512usize.saturating_sub(prefix.len()));
+        prefix.extend_from_slice(&bytes[..retain]);
+        reader.consume(count);
+        if end.is_some() {
+            return Ok(true);
+        }
+    }
+}
 pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
     let current = std::env::current_dir().map_err(|_| "cannot determine current directory")?;
-    let root = PathBuf::from(
-        string(git(&current, &["rev-parse", "--show-toplevel"])?)?.trim_end_matches('\n'),
-    );
+    let root_output = string(git(&current, &["rev-parse", "--show-toplevel"])?)?;
+    let root = PathBuf::from(root_output.strip_suffix('\n').unwrap_or(&root_output));
     let mode = if options.history {
         "history"
     } else if options.staged {
@@ -285,6 +290,10 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
             .into_iter()
             .map(|e| (e.path.clone(), e))
             .collect();
+        let previous: BTreeMap<_, _> = tree(&root, &base)?
+            .into_iter()
+            .map(|e| (e.path.clone(), e))
+            .collect();
         let mut i = 0;
         while i < fields.len() {
             let status = fields[i];
@@ -312,8 +321,13 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
                 skip(&mut report, path, "oversized");
                 continue;
             }
-            let lines = added_lines(&root, &base, &head, source, path)?;
-            read_entry(&root, e, &mut report, limit, None, Some(&lines))?;
+            let old = previous
+                .get(source.unwrap_or(path))
+                .filter(|e| e.mode != "120000" && e.mode != "160000");
+            let lines = old
+                .map(|old| added_lines(&root, &old.oid, &e.oid))
+                .transpose()?;
+            read_entry(&root, e, &mut report, limit, None, lines.as_ref())?;
         }
     } else {
         let mut paths = Vec::new();

@@ -93,3 +93,33 @@ fn structurally_valid_jwt_and_invalid_lookalikes() {
     assert_eq!(f[0].confidence, Confidence::Medium);
     assert!(detect("a.txt", "eyJnotjson.abcd.abcdefgh").is_empty());
 }
+
+#[test]
+fn bare_authorization_prefixes_and_yaml_markers_are_not_material() {
+    for input in [
+        "Authorization: Basic",
+        "Authorization: Bearer",
+        "token=Bearer",
+        "password: |",
+        "password: >-",
+    ] {
+        assert!(
+            detect("a.yml", input).is_empty(),
+            "bare credential marker detected"
+        );
+    }
+}
+
+#[test]
+fn common_prefixed_environment_credentials_have_context() {
+    for input in [
+        "DB_PASSWORD=aaaaaa",
+        "client_secret=aaaaaa",
+        "AWS_SECRET_ACCESS_KEY=aaaaaa",
+        "OPENAI_API_KEY=aaaaaa",
+    ] {
+        let f = detect(".env", input);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].score, 60);
+    }
+}

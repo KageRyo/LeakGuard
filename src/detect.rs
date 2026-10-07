@@ -22,7 +22,7 @@ static RULES: LazyLock<Vec<Rule>> = LazyLock::new(|| {
 });
 static CONTEXT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-    r#"(?i)\b(?:api[_-]?key|access[_-]?token|token|password|passwd|secret|private[_-]?key|authorization)\b["']?\s*[:=]\s*(?:(?:bearer|basic)\s+)?(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,;}\]]+))"#
+    r#"(?i)\b(?:[a-z][a-z0-9]*[_-])*(?:api[_-]?key|access[_-]?token|secret[_-]?access[_-]?key|token|password|passwd|secret|private[_-]?key|authorization)\b["']?\s*[:=]\s*(?:(?:bearer|basic)\s+)?(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s,;}\]]+))"#
 ).expect("static context")
 });
 static BEARER: LazyLock<Regex> = LazyLock::new(|| {
@@ -123,7 +123,12 @@ pub fn detect(path: &str, text: &str) -> Vec<Finding> {
         let mut contexts = Vec::new();
         for caps in CONTEXT.captures_iter(line) {
             let value = (1..=3).find_map(|i| caps.get(i)).expect("value capture");
-            if !placeholder(value.as_str()) {
+            if !placeholder(value.as_str())
+                && !matches!(
+                    value.as_str().to_ascii_lowercase().as_str(),
+                    "bearer" | "basic" | "|" | "|-" | "|+" | ">" | ">-" | ">+"
+                )
+            {
                 contexts.push(value);
             }
         }

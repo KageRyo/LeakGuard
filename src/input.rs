@@ -55,7 +55,13 @@ pub fn add_bytes(
 }
 pub fn path_string(path: &Path) -> Result<String, String> {
     path.to_str()
-        .map(|s| s.replace('\\', "/"))
+        .map(|s| {
+            if cfg!(windows) {
+                s.replace('\\', "/")
+            } else {
+                s.to_owned()
+            }
+        })
         .ok_or_else(|| "input path is not valid UTF-8".into())
 }
 fn git_internal(path: &Path) -> bool {

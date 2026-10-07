@@ -65,6 +65,10 @@ database URLs, and contextual credentials. These are syntax checks, not proof
 that a credential is real or active. Context includes quoted JSON keys,
 assignments, YAML mappings, Bearer and Basic headers, and keys such as `password`,
 `secret`, `api_key`, `token`, `authorization` and `private_key`.
+Environment prefixes such as `DB_PASSWORD`, `client_secret` and
+`AWS_SECRET_ACCESS_KEY` are recognized. Generic multiline YAML scalar extraction
+is outside v0.1; scalar markers alone are not credentials. Strong provider and PEM
+patterns are still detected on their own lines.
 
 | Evidence | Score |
 | --- | ---: |

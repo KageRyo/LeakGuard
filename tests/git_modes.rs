@@ -171,3 +171,137 @@ fn shallow_history_is_explicit_and_subdirectories_scan_repository_root() {
     assert_eq!(o.status.code(), Some(1));
     assert_eq!(json(&o)["findings"][0]["path"], "a.txt");
 }
+
+#[test]
+fn unborn_index_and_staged_deletion() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    git(d.path(), &["add", "a.txt"]);
+    assert_eq!(run(d.path(), &["--staged"]).status.code(), Some(1));
+    commit(d.path());
+    git(d.path(), &["rm", "a.txt"]);
+    let o = run(d.path(), &["--staged"]);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(json(&o)["scanned_files"], 0);
+}
+
+#[test]
+fn diff_ignores_configured_interhunk_context() {
+    let d = repo();
+    fs::write(
+        d.path().join("a.txt"),
+        format!("old\n{}\nsafe\nold\n", token()),
+    )
+    .unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(
+        d.path().join("a.txt"),
+        format!("new\n{}\nsafe\nnew\n", token()),
+    )
+    .unwrap();
+    commit(d.path());
+    git(d.path(), &["config", "diff.interHunkContext", "10"]);
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(0));
+    assert!(json(&o)["findings"].as_array().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn repository_root_ending_with_newline_and_literal_pathspecs() {
+    let outer = tempdir().unwrap();
+    let root = outer.path().join("repo\n");
+    fs::create_dir(&root).unwrap();
+    git(&root, &["init", "-q"]);
+    git(&root, &["config", "user.email", "test@example.invalid"]);
+    git(&root, &["config", "user.name", "Test"]);
+    let name = "[brackets]:colon.txt";
+    fs::write(root.join(name), "safe").unwrap();
+    commit(&root);
+    let base = git(&root, &["rev-parse", "HEAD"]);
+    fs::write(root.join(name), token()).unwrap();
+    commit(&root);
+    let o = run(&root, &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(1));
+    assert_eq!(json(&o)["findings"][0]["path"], name);
+}
+
+#[test]
+fn text_marked_binary_by_git_attributes_is_still_scanned_in_diff() {
+    let d = repo();
+    fs::write(d.path().join(".gitattributes"), "*.txt -diff\n").unwrap();
+    fs::write(d.path().join("a.txt"), "safe").unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(1));
+    assert_eq!(json(&o)["findings"][0]["line"], 1);
+}
+
+#[test]
+fn renamed_file_line_selection_does_not_include_new_source_directory() {
+    let d = repo();
+    let old = format!("{}\n{}", token(), "safe\n".repeat(30));
+    fs::write(d.path().join("a"), &old).unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    git(d.path(), &["mv", "a", "b"]);
+    fs::write(d.path().join("b"), format!("{old}extra safe\n")).unwrap();
+    fs::create_dir(d.path().join("a")).unwrap();
+    fs::write(d.path().join("a/x"), "new safe\n").unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(0));
+    assert!(json(&o)["findings"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn oversized_base_line_does_not_hide_small_destination_secret() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), "x".repeat(2 * 1024 * 1024)).unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base, "--max-file-bytes", "128"]);
+    assert_eq!(o.status.code(), Some(1));
+    assert_eq!(json(&o)["scanned_files"], 1);
+}
+
+#[test]
+fn unmerged_index_is_an_error() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), "base\n").unwrap();
+    commit(d.path());
+    let main = git(d.path(), &["branch", "--show-current"]);
+    git(d.path(), &["checkout", "-qb", "other"]);
+    fs::write(d.path().join("a.txt"), "other\n").unwrap();
+    commit(d.path());
+    git(d.path(), &["checkout", "-q", &main]);
+    fs::write(d.path().join("a.txt"), "main\n").unwrap();
+    commit(d.path());
+    let merge = Command::new("git")
+        .current_dir(d.path())
+        .args(["merge", "other"])
+        .output()
+        .unwrap();
+    assert!(!merge.status.success());
+    assert_eq!(run(d.path(), &["--staged"]).status.code(), Some(2));
+    assert_eq!(run(d.path(), &[]).status.code(), Some(2));
+}
+
+#[test]
+fn pure_rename_does_not_report_existing_secret() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    git(d.path(), &["mv", "a.txt", "b.txt"]);
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(0));
+    assert!(json(&o)["findings"].as_array().unwrap().is_empty());
+}
