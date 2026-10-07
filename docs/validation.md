@@ -3,7 +3,11 @@
 Date: 2026-10-07 (Asia/Taipei).
 Branch: `feat/leakguard-v0.1`, based on `ac6f448`.
 Final tested code and verification commit: `f7fe4d8255a12352c7f7248e036dfacafdd38dc8`.
-Subsequent completion documentation does not change executable code.
+Subsequent release-smoke maintenance does not change executable code.
+The extracted-archive smoke resolves its temporary fixture directory before
+scanning, because macOS `/var` is a symlink and the scanner rejects linked
+ancestors. This was reproduced locally with a symlink-backed `TMPDIR`;
+checksum, version, exit 0/1/2 and redaction checks all passed after resolution.
 
 ## Gates
 
