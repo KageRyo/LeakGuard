@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -34,6 +34,17 @@ jobs:
           RELEASE_TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: python3 scripts/package-release.py
+      - name: Smoke freshly extracted archive
+        shell: bash
+        run: |
+          for archive in dist/*.tar.gz dist/*.zip; do
+            [ -f "$archive" ] || continue
+            case "$archive" in
+              *.tar.gz) sums="${archive%.tar.gz}.sha256" ;;
+              *.zip) sums="${archive%.zip}.sha256" ;;
+            esac
+            python3 scripts/smoke-release.py "$archive" "$sums"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: leakguard-${{ matrix.target }}

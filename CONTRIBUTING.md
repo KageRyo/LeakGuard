@@ -12,7 +12,8 @@ New commits follow Conventional Commits 1.0.0, for example:
 - `test(action): reject corrupt downloads`
 - `docs: explain history boundaries`
 
-Releases must keep Cargo.toml, action-version.txt and version tags consistent.
+Releases must keep Cargo.toml, action-version.txt, version tags and the pinned
+consumer reference in .github/workflows/action-smoke.yml consistent.
 Release automation creates a draft with three platform assets and SHA256SUMS.
 Review the assets, fresh extracted binaries and hosted CI before publication.
 The Linux Action requires a same-version published release; do not point consumers

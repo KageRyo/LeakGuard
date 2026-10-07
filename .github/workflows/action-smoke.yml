@@ -1,0 +1,32 @@
+name: Published Action smoke
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Prepare synthetic fixtures
+        run: python3 scripts/action-smoke-fixture.py seed
+      - name: Clean input through published version
+        uses: KageRyo/LeakGuard@v0.1.0
+        with:
+          paths: .superpowers/action-smoke/clean.txt
+          format: json
+          output: .superpowers/action-smoke/clean.json
+      - name: Finding through published version
+        id: finding
+        continue-on-error: true
+        uses: KageRyo/LeakGuard@v0.1.0
+        with:
+          paths: .superpowers/action-smoke/secret.log
+          format: sarif
+          output: .superpowers/action-smoke/finding.sarif
+      - name: Verify expected failure and redaction
+        env:
+          FINDING_OUTCOME: ${{ steps.finding.outcome }}
+        run: python3 scripts/action-smoke-fixture.py check
