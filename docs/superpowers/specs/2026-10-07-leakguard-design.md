@@ -1,6 +1,8 @@
 # LeakGuard v0.1 design
 
-Status: approved by the user on 2026-10-07; implementation in progress.
+Status: approved by the user on 2026-10-07; implemented and locally validated.
+
+Evidence: ../../validation.md. Remote delivery is outside this implementation step.
 
 ## Purpose and scope
 

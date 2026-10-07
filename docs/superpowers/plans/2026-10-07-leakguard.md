@@ -32,10 +32,10 @@ or Git text; reporters consume one serializable report. The CLI coordinates them
 **Interfaces:** `detect(path: &str, text: &str) -> Vec<Finding>`;
 Finding exposes only rule/path/position/score/confidence/reasons/commit.
 
-- [ ] Write provider/context/placeholder/Unicode/overlap tests; run `cargo test --test detection` and confirm expected assertion failures with an empty detector.
-- [ ] Implement curated patterns, contextual extraction, entropy evidence and overlap deduplication.
-- [ ] Run the detector suite and confirm scores, redaction and false-positive cases.
-- [ ] Write threat model, scope, scoring and usage in README; commit as `feat: add redacted contextual credential detector`.
+- [x] Write provider/context/placeholder/Unicode/overlap tests; run `cargo test --test detection` and confirm expected assertion failures with an empty detector.
+- [x] Implement curated patterns, contextual extraction, entropy evidence and overlap deduplication.
+- [x] Run the detector suite and confirm scores, redaction and false-positive cases.
+- [x] Write threat model, scope, scoring and usage in README; commit as `feat: add redacted contextual credential detector`.
 
 ### Task 2: CLI, filesystem and reports
 
@@ -43,12 +43,12 @@ Finding exposes only rule/path/position/score/confidence/reasons/commit.
 **Interfaces:** `scan(options: &ScanOptions) -> Result<Report, String>`;
 `render(report: &Report, format: Format, threshold: Confidence) -> String`.
 
-- [ ] Write CLI subprocess tests for ignored artifacts, thresholds, skip accounting,
+- [x] Write CLI subprocess tests for ignored artifacts, thresholds, skip accounting,
   symlinks, output failures, canary redaction and annotation escaping; confirm failures.
-- [ ] Implement recursive traversal, bounded reading, argparse, shared reports,
+- [x] Implement recursive traversal, bounded reading, argparse, shared reports,
   text/JSON/SARIF/annotations and safe output writes.
-- [ ] Run `cargo test` and validate actual parsed SARIF/JSON locations and counts.
-- [ ] Commit as `feat: add filesystem scanning and CI reports`.
+- [x] Run `cargo test` and validate actual parsed SARIF/JSON locations and counts.
+- [x] Commit as `feat: add filesystem scanning and CI reports`.
 
 ### Task 3: Git selection
 
@@ -56,12 +56,12 @@ Finding exposes only rule/path/position/score/confidence/reasons/commit.
 **Interfaces:** Git adapter produces inputs with optional line filter and commit;
 filesystem and Git use the same detector and report accumulation.
 
-- [ ] Add real temporary-repository tests for working tree, staged content,
+- [x] Add real temporary-repository tests for working tree, staged content,
   deleted history, diff additions/renames, filenames, revisions and shallow scans.
-- [ ] Confirm these tests fail before replacing missing Git adapter behavior.
-- [ ] Implement NUL inventories, blob reads, HEAD-reachable history and diff
+- [x] Confirm these tests fail before replacing missing Git adapter behavior.
+- [x] Implement NUL inventories, blob reads, HEAD-reachable history and diff
   added-line selection, with bounded reading and explicit skip/error accounting.
-- [ ] Run `cargo test`; commit as `feat: scan Git worktree index diffs and history`.
+- [x] Run `cargo test`; commit as `feat: scan Git worktree index diffs and history`.
 
 ### Task 4: Action and automation
 
@@ -71,18 +71,18 @@ scripts/test-action-integration.py, .github/workflows/ci.yml,
 **Interfaces:** versioned Linux archive and SHA256SUMS; newline-separated Action
 paths and environment variables become CLI argument arrays.
 
-- [ ] Write local HTTP release tests asserting exit 0/1/2, checksums and literal
+- [x] Write local HTTP release tests asserting exit 0/1/2, checksums and literal
   shell-like paths; confirm missing runner fails these tests.
-- [ ] Implement verified download/extraction and safe argument forwarding.
-- [ ] Run integration tests with the actual release CLI and synthetic server.
-- [ ] Add locked CI and three-platform release/checksum automation; commit as
+- [x] Implement verified download/extraction and safe argument forwarding.
+- [x] Run integration tests with the actual release CLI and synthetic server.
+- [x] Add locked CI and three-platform release/checksum automation; commit as
   `ci: add verified composite action and release builds`.
 
 ### Task 5: Completion audit and review
 
-- [ ] Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`,
+- [x] Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`,
   `cargo test --locked`, `cargo build --release --locked` and Action integration.
-- [ ] Install binary into a local temporary prefix and prove clean/finding/error exits.
-- [ ] Obtain whole-branch code review; address material findings with regression tests.
-- [ ] Audit every spec acceptance item and record evidence in docs/validation.md.
-- [ ] Report local readiness and exact branch/commit; remote CI/release remain pending.
+- [x] Install binary into a local temporary prefix and prove clean/finding/error exits.
+- [x] Obtain whole-branch code review; address material findings with regression tests.
+- [x] Audit every spec acceptance item and record evidence in docs/validation.md.
+- [x] Report local readiness and exact branch/commit; remote CI/release remain pending.

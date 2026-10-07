@@ -6,7 +6,7 @@ LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and
 artifacts for accidentally exposed credentials. It runs offline with no server,
 database, LLM, provider API calls, or sibling-project dependencies.
 
-**Development status:** v0.1.0 is being implemented. Release binaries and the
+**Development status:** v0.1.0 is implemented and locally validated. Release binaries and the
 `KageRyo/LeakGuard@v1` Action tag are not published yet. Examples using a release
 must wait for its publication; local source installation works now.
 
@@ -168,5 +168,7 @@ python3 scripts/test-action-integration.py
 Tests use synthetic credentials, real temporary Git repositories, and a local HTTP
 release server. See [design](docs/superpowers/specs/2026-10-07-leakguard-design.md)
 and [implementation plan](docs/superpowers/plans/2026-10-07-leakguard.md).
+See [validation evidence and delivery boundaries](docs/validation.md) for the
+tested scope and checks that remain dependent on remote CI or publication.
 New commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
 Licensed under [Apache-2.0](LICENSE).
