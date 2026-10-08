@@ -19,6 +19,7 @@ case "$mode" in
   *) fail 'invalid scan mode' ;;
 esac
 if [[ -n "${INPUT_OUTPUT:-}" ]]; then args+=(--output "$INPUT_OUTPUT"); fi
+if [[ -n "${INPUT_CONFIG:-}" ]]; then args+=("--config=$INPUT_CONFIG"); fi
 if [[ -n "$paths" ]]; then
   args+=(--)
   while IFS= read -r path || [[ -n "$path" ]]; do

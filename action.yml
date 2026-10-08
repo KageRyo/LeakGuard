@@ -29,6 +29,10 @@ inputs:
     description: Optional report destination; default is stdout
     required: false
     default: ''
+  config:
+    description: Optional suppression config path; .leakguard.toml at the repository root is used by default
+    required: false
+    default: ''
   max-file-bytes:
     description: Maximum file size to scan in bytes
     required: false
@@ -45,5 +49,6 @@ runs:
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
         INPUT_FORMAT: ${{ inputs.format }}
         INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_CONFIG: ${{ inputs.config }}
         INPUT_MAX_FILE_BYTES: ${{ inputs.max-file-bytes }}
       run: bash "$GITHUB_ACTION_PATH/scripts/leakguard-action.sh"

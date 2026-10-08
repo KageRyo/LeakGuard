@@ -58,6 +58,7 @@ class ActionIntegration(unittest.TestCase):
             "INPUT_PATHS": "clean.txt", "INPUT_MODE": "tracked", "INPUT_BASE": "",
             "INPUT_FAIL_ON": "high", "INPUT_FORMAT": "json", "INPUT_OUTPUT": "",
             "INPUT_MAX_FILE_BYTES": "10485760",
+            "INPUT_CONFIG": "",
         })
         env.update(inputs)
         (self.path / "clean.txt").write_text("safe\n")
@@ -114,6 +115,23 @@ class ActionIntegration(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["path"], "new.log")
         self.assertNotIn(TOKEN, result.stdout + result.stderr)
+    def test_config_input_and_default_discovery_suppress_fixtures(self):
+        (self.path / "secret.log").write_text("Authorization: Bearer " + TOKEN)
+        config = '[[allow]]\npaths = ["secret.log"]\nreason = "synthetic"\n'
+        (self.path / "lg.toml").write_text(config)
+        result = self.run_action(INPUT_PATHS="secret.log", INPUT_CONFIG="lg.toml")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["suppressed"][0]["suppression"]["reason"], "synthetic")
+        (self.path / ".leakguard.toml").write_text(config)
+        result = self.run_action(INPUT_PATHS="secret.log")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(TOKEN, result.stdout + result.stderr)
+    def test_invalid_config_is_exit_two(self):
+        for value in ["missing.toml", "-leading-dash.toml"]:
+            with self.subTest(config=value):
+                self.assertEqual(self.run_action(INPUT_CONFIG=value).returncode, 2)
+        (self.path / ".leakguard.toml").write_text('[[allow]]\npaths = ["clean.txt"]\n')
+        self.assertEqual(self.run_action().returncode, 2)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
