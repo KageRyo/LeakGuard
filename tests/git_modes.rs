@@ -371,3 +371,95 @@ fn unrelated_history_has_no_merge_base_and_fails_closed() {
     assert!(!String::from_utf8_lossy(&o.stderr).contains(&base));
     assert!(o.stdout.is_empty());
 }
+#[test]
+fn suppressions_apply_in_tracked_staged_and_history_modes() {
+    let d = repo();
+    fs::create_dir(d.path().join("fixtures")).unwrap();
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"fixtures/**\"]\nreason = \"synthetic\"\n",
+    )
+    .unwrap();
+    fs::write(d.path().join("fixtures/a.txt"), token()).unwrap();
+    fs::write(d.path().join("b.txt"), format!("{}\n", token())).unwrap();
+    commit(d.path());
+    let j = json(&run(d.path(), &[]));
+    assert_eq!(j["suppressed"][0]["path"], "fixtures/a.txt");
+    assert_eq!(j["findings"][0]["path"], "b.txt");
+    fs::write(
+        d.path().join("b.txt"),
+        format!("{} # leakguard:allow\n", token()),
+    )
+    .unwrap();
+    assert_eq!(run(d.path(), &[]).status.code(), Some(0));
+    git(d.path(), &["add", "b.txt"]);
+    let o = run(d.path(), &["--staged"]);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(json(&o)["suppressed"][0]["suppression"]["kind"], "inline");
+    git(d.path(), &["commit", "-qm", "mark fixture"]);
+    // The first b.txt blob has no marker; a later marked blob does not hide it.
+    let o = run(d.path(), &["--history"]);
+    assert_eq!(o.status.code(), Some(1));
+    let j = json(&o);
+    assert_eq!(j["findings"].as_array().unwrap().len(), 1);
+    assert_eq!(j["findings"][0]["path"], "b.txt");
+    assert_eq!(j["suppressed"].as_array().unwrap().len(), 2);
+}
+#[test]
+fn diff_warns_only_when_the_change_modifies_the_config() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), "safe\n").unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::create_dir(d.path().join("fixtures")).unwrap();
+    fs::write(d.path().join("fixtures/new.txt"), token()).unwrap();
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"fixtures/**\"]\nreason = \"synthetic\"\n",
+    )
+    .unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(0));
+    let j = json(&o);
+    assert_eq!(j["suppressed"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        j["warnings"][0],
+        "This change modifies .leakguard.toml; review new suppressions"
+    );
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(d.path().join("fixtures/second.txt"), token()).unwrap();
+    commit(d.path());
+    let j = json(&run(d.path(), &["--diff", &base]));
+    assert_eq!(j["suppressed"].as_array().unwrap().len(), 1);
+    assert!(j["warnings"].as_array().unwrap().is_empty());
+}
+#[test]
+fn diff_honors_markers_only_on_added_lines() {
+    let d = repo();
+    fs::write(d.path().join("a.txt"), "header # leakguard:allow\n").unwrap();
+    commit(d.path());
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(
+        d.path().join("a.txt"),
+        format!("header # leakguard:allow\n{}\n", token()),
+    )
+    .unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(1));
+    assert_eq!(json(&o)["findings"][0]["line"], 2);
+    let base = git(d.path(), &["rev-parse", "HEAD"]);
+    fs::write(
+        d.path().join("a.txt"),
+        format!(
+            "header # leakguard:allow\n{t}\n{t} # leakguard:allow\n",
+            t = token()
+        ),
+    )
+    .unwrap();
+    commit(d.path());
+    let o = run(d.path(), &["--diff", &base]);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(json(&o)["suppressed"][0]["line"], 3);
+}

@@ -219,7 +219,11 @@ pub fn toplevel(current: &Path) -> Result<PathBuf, String> {
     let output = string(git(current, &["rev-parse", "--show-toplevel"])?)?;
     Ok(PathBuf::from(output.strip_suffix('\n').unwrap_or(&output)))
 }
-pub fn scan_git(options: &ScanOptions, root: &Path) -> Result<Report, String> {
+pub fn scan_git(
+    options: &ScanOptions,
+    root: &Path,
+    watched: Option<&str>,
+) -> Result<Report, String> {
     let mode = if options.history {
         "history"
     } else if options.staged {
@@ -315,6 +319,11 @@ pub fn scan_git(options: &ScanOptions, root: &Path) -> Result<Report, String> {
             } else {
                 (None, first)
             };
+            if watched == Some(path) {
+                report.warnings.push(format!(
+                    "This change modifies {path}; review new suppressions"
+                ));
+            }
             let e = entries.get(path).ok_or("missing Git destination object")?;
             // Check size before invoking a potentially large diff.
             if e.mode == "120000" || e.mode == "160000" {

@@ -193,7 +193,8 @@ pub fn scan(options: &ScanOptions) -> Result<Report, String> {
     };
     let config = Config::load(&root, options.config.as_deref())?;
     let mut report = if git_mode {
-        crate::git::scan_git(options, &root)?
+        let watched = config.as_ref().and_then(|c| c.repo_path(&root));
+        crate::git::scan_git(options, &root, watched.as_deref())?
     } else {
         let mut r = Report {
             mode: "paths".into(),
