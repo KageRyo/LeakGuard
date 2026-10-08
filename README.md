@@ -1,6 +1,6 @@
 # LeakGuard
 
-[![CI](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/KageRyo/LeakGuard?display_name=tag&sort=semver)](https://github.com/KageRyo/LeakGuard/releases) [![License](https://img.shields.io/github/license/KageRyo/LeakGuard.svg)](LICENSE)
+[![CI](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/KageRyo/LeakGuard/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/KageRyo/LeakGuard?display_name=tag&sort=semver)](https://github.com/KageRyo/LeakGuard/releases) [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-LeakGuard-2088FF?logo=githubactions&logoColor=white)](https://github.com/marketplace/actions/leakguard-credential-leakage-guard) [![Rust 1.85+](https://img.shields.io/badge/rust-1.85%2B-DEA584.svg?logo=rust)](https://www.rust-lang.org/) [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/en/v1.0.0/) [![License](https://img.shields.io/github/license/KageRyo/LeakGuard.svg)](LICENSE)
 
 Lightweight secret & credential leakage guard for CI pipelines.
 
