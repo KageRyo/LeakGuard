@@ -8,9 +8,9 @@ LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and
 artifacts for accidentally exposed credentials. It runs offline with no server,
 database, LLM, provider API calls, or sibling-project dependencies.
 
-**Version:** v0.1.0. Binary installation and the composite Action require the
-matching [GitHub release](https://github.com/KageRyo/LeakGuard/releases).
-The source installation below is available independently of release publication.
+**Version:** v0.1.0. The [GitHub release](https://github.com/KageRyo/LeakGuard/releases)
+provides Linux x86_64, Windows x86_64 and macOS ARM64 archives with `SHA256SUMS`;
+the composite Action downloads and verifies the matching Linux archive.
 
 ## Why LeakGuard?
 
@@ -120,7 +120,7 @@ base commit fetched. Tracked mode is a full working-tree audit; history mode is
 for investigating HEAD-reachable historical exposure. The default CLI/Action
 mode remains tracked for explicit full-repository scans.
 
-After the matching release is published:
+A pull request gate:
 
 ```yaml
 name: Credential leakage guard
@@ -160,8 +160,8 @@ expansion):
 ```
 
 The optional upload requires `security-events: write` in the consuming workflow.
-Use `@v1` to follow the v1 Action series after that major tag is created; pin
-`@v0.1.0` for the versioned release shown above.
+Use `@v1` to follow the v1 Action series, or pin `@v0.1.0` for the exact
+release shown above.
 Only use `if: always()` when the report was actually produced; input/download
 errors may leave no report. `mode: diff` requires `base`; combine explicit paths
 only with the default tracked mode. `max-file-bytes` defaults to 10485760.
