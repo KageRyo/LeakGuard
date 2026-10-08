@@ -1,0 +1,4 @@
+# LeakGuard's own suppressions. See the README section "Suppress intentional findings".
+[[allow]]
+paths = ["tests/**"]
+reason = "synthetic credentials exercised by detector, CLI and Git-mode tests"

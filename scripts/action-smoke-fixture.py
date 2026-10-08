@@ -14,7 +14,7 @@ if sys.argv[1] == "seed":
 elif sys.argv[1] == "check":
     clean_text = (root / "clean.json").read_text()
     secret_text = (root / "finding.sarif").read_text()
-    clean, secret = json.loads(clean_text), json.loads(secret_text)
+    clean, secret = json.loads(clean_text), json.loads(secret_text)  # leakguard:allow detector false positive on a code assignment
     assert clean["scanned_files"] == 1 and clean["findings"] == []
     assert os.environ["FINDING_OUTCOME"] == "failure"
     results = secret["runs"][0]["results"]

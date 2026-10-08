@@ -21,6 +21,8 @@ jobs:
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: cargo build --release --locked
+      - name: Scan this repository with LeakGuard
+        run: cargo run --release --locked --quiet -- scan
       - name: Action integration (Linux)
         if: runner.os == 'Linux'
         run: python3 scripts/test-action-integration.py
