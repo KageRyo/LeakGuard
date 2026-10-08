@@ -37,6 +37,23 @@ pub struct Skipped {
     pub path: String,
     pub reason: String,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SuppressionKind {
+    Inline,
+    Config,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct Suppression {
+    pub kind: SuppressionKind,
+    pub reason: Option<String>,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct SuppressedFinding {
+    #[serde(flatten)]
+    pub finding: Finding,
+    pub suppression: Suppression,
+}
 #[derive(Debug, Default, Serialize)]
 pub struct Report {
     pub mode: String,
@@ -45,6 +62,7 @@ pub struct Report {
     pub skipped: Vec<Skipped>,
     pub warnings: Vec<String>,
     pub findings: Vec<Finding>,
+    pub suppressed: Vec<SuppressedFinding>,
 }
 impl Report {
     pub fn fails(&self, threshold: Confidence) -> bool {

@@ -28,6 +28,10 @@ static CONTEXT: LazyLock<Regex> = LazyLock::new(|| {
 static BEARER: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bbearer\s+([A-Za-z0-9_.~+/=-]{6,})").expect("static bearer")
 });
+/// Rule IDs accepted by suppression config, including contextual candidates.
+pub fn known_rule(id: &str) -> bool {
+    id == "context-credential" || RULES.iter().any(|r| r.id == id)
+}
 
 pub fn is_artifact(path: &str) -> bool {
     let p = path.to_ascii_lowercase().replace('\\', "/");
