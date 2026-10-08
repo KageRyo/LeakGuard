@@ -3,7 +3,11 @@ use leakguard::{
     model::{Report, SuppressionKind},
     suppress::{Config, inline_marker},
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, Output},
+};
 use tempfile::tempdir;
 
 fn token() -> String {
@@ -219,4 +223,192 @@ fn inline_marker_is_exact_and_case_sensitive() {
     assert!(inline_marker("<!-- leakguard:allow -->"));
     assert!(!inline_marker("token = x # LeakGuard:Allow"));
     assert!(!inline_marker("token = x # leakguard: allow"));
+}
+fn run(root: &Path, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_leakguard"))
+        .current_dir(root)
+        .arg("scan")
+        .args(args)
+        .output()
+        .unwrap()
+}
+fn json(o: &Output) -> serde_json::Value {
+    serde_json::from_slice(&o.stdout).unwrap()
+}
+#[test]
+fn inline_marker_suppresses_every_finding_on_its_line_only() {
+    let d = tempdir().unwrap();
+    fs::write(
+        d.path().join("a.py"),
+        format!(
+            "pair = ['{t}', '{t}']  # leakguard:allow fixture\n",
+            t = token()
+        ),
+    )
+    .unwrap();
+    let o = run(d.path(), &["a.py", "--format", "json"]);
+    assert_eq!(o.status.code(), Some(0));
+    let j = json(&o);
+    assert!(j["findings"].as_array().unwrap().is_empty());
+    assert_eq!(j["suppressed"].as_array().unwrap().len(), 2);
+    assert_eq!(j["suppressed"][0]["suppression"]["kind"], "inline");
+    assert!(j["suppressed"][0]["suppression"]["reason"].is_null());
+    fs::write(
+        d.path().join("b.py"),
+        format!("# leakguard:allow\nvalue = '{}'\n", token()),
+    )
+    .unwrap();
+    assert_eq!(run(d.path(), &["b.py"]).status.code(), Some(1));
+}
+#[test]
+fn inline_marker_works_with_any_comment_style_and_crlf_but_is_case_sensitive() {
+    let d = tempdir().unwrap();
+    for (name, line) in [
+        (
+            "a.sh",
+            format!("TOKEN={} # leakguard:allow\r\nnext\r\n", token()),
+        ),
+        (
+            "a.rs",
+            format!("let t = \"{}\"; // leakguard:allow\r\n", token()),
+        ),
+        (
+            "a.html",
+            format!("<p>{}</p> <!-- leakguard:allow -->\n", token()),
+        ),
+    ] {
+        fs::write(d.path().join(name), line).unwrap();
+        assert_eq!(run(d.path(), &[name]).status.code(), Some(0), "{name}");
+    }
+    fs::write(
+        d.path().join("upper.sh"),
+        format!("TOKEN={} # LeakGuard:Allow\n", token()),
+    )
+    .unwrap();
+    assert_eq!(run(d.path(), &["upper.sh"]).status.code(), Some(1));
+}
+#[test]
+fn inline_reason_never_reaches_any_report() {
+    let d = tempdir().unwrap();
+    fs::write(
+        d.path().join("a.txt"),
+        format!("{} leakguard:allow CANARYREASON\n", token()),
+    )
+    .unwrap();
+    for format in ["text", "json", "sarif", "annotations"] {
+        let o = run(d.path(), &["a.txt", "--format", format]);
+        assert_eq!(o.status.code(), Some(0), "{format}");
+        let all = format!(
+            "{}{}",
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        );
+        assert!(!all.contains("CANARYREASON"), "{format}");
+        assert!(!all.contains(&token()), "{format}");
+    }
+}
+#[test]
+fn default_config_applies_to_explicit_paths_in_any_spelling() {
+    let d = tempdir().unwrap();
+    // The scanner skips linked ancestors such as macOS /var, so use the physical path.
+    #[cfg(unix)]
+    let root = fs::canonicalize(d.path()).unwrap();
+    #[cfg(not(unix))]
+    let root = d.path().to_path_buf();
+    fs::create_dir_all(root.join("fixtures/deep")).unwrap();
+    fs::write(root.join("fixtures/deep/a.log"), token()).unwrap();
+    fs::write(
+        root.join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"fixtures/**\"]\nreason = \"synthetic logs\"\n",
+    )
+    .unwrap();
+    let absolute = root.join("fixtures/deep/a.log");
+    for path in [
+        "fixtures",
+        "./fixtures/deep/a.log",
+        absolute.to_str().unwrap(),
+    ] {
+        let o = run(&root, &[path, "--format", "json"]);
+        assert_eq!(o.status.code(), Some(0), "{path}");
+        assert_eq!(
+            json(&o)["suppressed"][0]["suppression"]["reason"],
+            "synthetic logs"
+        );
+    }
+}
+#[test]
+fn explicit_config_paths_are_relative_to_its_own_directory() {
+    let d = tempdir().unwrap();
+    fs::create_dir(d.path().join("conf")).unwrap();
+    fs::create_dir(d.path().join("sub")).unwrap();
+    fs::write(
+        d.path().join("conf/lg.toml"),
+        "[[allow]]\npaths = [\"a.txt\"]\nreason = \"conf-relative\"\n",
+    )
+    .unwrap();
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    fs::write(d.path().join("conf/a.txt"), token()).unwrap();
+    let o = run(
+        d.path(),
+        &[
+            "a.txt",
+            "conf/a.txt",
+            "--config",
+            "conf/lg.toml",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(o.status.code(), Some(1));
+    let j = json(&o);
+    assert_eq!(j["findings"][0]["path"], "a.txt");
+    assert_eq!(j["suppressed"][0]["path"], "conf/a.txt");
+    let o = run(
+        &d.path().join("sub"),
+        &["../conf/a.txt", "--config", "../conf/lg.toml"],
+    );
+    assert_eq!(o.status.code(), Some(0));
+}
+#[test]
+fn inline_marker_takes_precedence_over_config() {
+    let d = tempdir().unwrap();
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\nrules = [\"github-token\"]\nreason = \"all tokens\"\n",
+    )
+    .unwrap();
+    fs::write(
+        d.path().join("a.txt"),
+        format!("{} # leakguard:allow\n{}\n", token(), token()),
+    )
+    .unwrap();
+    let j = json(&run(d.path(), &["a.txt", "--format", "json"]));
+    assert_eq!(j["suppressed"][0]["suppression"]["kind"], "inline");
+    assert_eq!(j["suppressed"][1]["suppression"]["kind"], "config");
+    assert_eq!(j["suppressed"][1]["suppression"]["reason"], "all tokens");
+}
+#[test]
+fn config_errors_exit_two_and_unsuppressed_findings_still_fail() {
+    let d = tempdir().unwrap();
+    fs::write(d.path().join("a.txt"), token()).unwrap();
+    let o = run(d.path(), &["a.txt", "--config", "missing.toml"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8_lossy(&o.stderr),
+        "LeakGuard error: cannot read suppression config\n"
+    );
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"CANARY\"]\n",
+    )
+    .unwrap();
+    let o = run(d.path(), &["a.txt"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(!String::from_utf8_lossy(&o.stderr).contains("CANARY"));
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"other.txt\"]\nreason = \"r\"\n",
+    )
+    .unwrap();
+    assert_eq!(run(d.path(), &["a.txt"]).status.code(), Some(1));
 }

@@ -214,10 +214,12 @@ fn line_prefix(reader: &mut impl BufRead, prefix: &mut Vec<u8>) -> std::io::Resu
         }
     }
 }
-pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
-    let current = std::env::current_dir().map_err(|_| "cannot determine current directory")?;
-    let root_output = string(git(&current, &["rev-parse", "--show-toplevel"])?)?;
-    let root = PathBuf::from(root_output.strip_suffix('\n').unwrap_or(&root_output));
+/// The repository's top-level directory as reported by Git.
+pub fn toplevel(current: &Path) -> Result<PathBuf, String> {
+    let output = string(git(current, &["rev-parse", "--show-toplevel"])?)?;
+    Ok(PathBuf::from(output.strip_suffix('\n').unwrap_or(&output)))
+}
+pub fn scan_git(options: &ScanOptions, root: &Path) -> Result<Report, String> {
     let mode = if options.history {
         "history"
     } else if options.staged {
@@ -233,24 +235,24 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
     };
     let limit = options.max_file_bytes;
     if options.history {
-        let head = revision(&root, "HEAD")?;
-        if string(git(&root, &["rev-parse", "--is-shallow-repository"])?)?.trim() == "true" {
+        let head = revision(root, "HEAD")?;
+        if string(git(root, &["rev-parse", "--is-shallow-repository"])?)?.trim() == "true" {
             report.warnings.push(
                 "Shallow repository: history includes only fetched HEAD-reachable commits".into(),
             );
         }
-        let commits = string(git(&root, &["rev-list", "--reverse", &head])?)?;
+        let commits = string(git(root, &["rev-list", "--reverse", &head])?)?;
         let mut seen = BTreeSet::new();
         for commit in commits.lines() {
-            for e in tree(&root, commit)? {
+            for e in tree(root, commit)? {
                 if seen.insert((e.oid.clone(), e.path.clone())) {
-                    read_entry(&root, &e, &mut report, limit, Some(commit), None)?;
+                    read_entry(root, &e, &mut report, limit, Some(commit), None)?;
                 }
             }
         }
     } else if options.staged {
         let changed = git(
-            &root,
+            root,
             &[
                 "diff",
                 "--cached",
@@ -262,22 +264,22 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
             ],
         )?;
         let paths: BTreeSet<_> = nul_strings(&changed)?.into_iter().collect();
-        for e in index(&root)? {
+        for e in index(root)? {
             if paths.contains(e.path.as_str()) {
-                read_entry(&root, &e, &mut report, limit, None, None)?;
+                read_entry(root, &e, &mut report, limit, None, None)?;
             }
         }
     } else if let Some(base) = &options.diff {
-        let base = revision(&root, base)?;
-        let head = revision(&root, "HEAD")?;
+        let base = revision(root, base)?;
+        let head = revision(root, "HEAD")?;
         let base = string(
-            git(&root, &["merge-base", &base, &head])
+            git(root, &["merge-base", &base, &head])
                 .map_err(|_| "cannot determine merge base; fetch shared history before scanning")?,
         )?
         .trim()
         .to_owned();
         let bytes = git(
-            &root,
+            root,
             &[
                 "diff",
                 "--name-status",
@@ -292,11 +294,11 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
             ],
         )?;
         let fields = nul_strings(&bytes)?;
-        let entries: BTreeMap<_, _> = tree(&root, &head)?
+        let entries: BTreeMap<_, _> = tree(root, &head)?
             .into_iter()
             .map(|e| (e.path.clone(), e))
             .collect();
-        let previous: BTreeMap<_, _> = tree(&root, &base)?
+        let previous: BTreeMap<_, _> = tree(root, &base)?
             .into_iter()
             .map(|e| (e.path.clone(), e))
             .collect();
@@ -316,10 +318,10 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
             let e = entries.get(path).ok_or("missing Git destination object")?;
             // Check size before invoking a potentially large diff.
             if e.mode == "120000" || e.mode == "160000" {
-                read_entry(&root, e, &mut report, limit, None, None)?;
+                read_entry(root, e, &mut report, limit, None, None)?;
                 continue;
             }
-            let size: u64 = string(git(&root, &["cat-file", "-s", &e.oid])?)?
+            let size: u64 = string(git(root, &["cat-file", "-s", &e.oid])?)?
                 .trim()
                 .parse()
                 .map_err(|_| "invalid Git object size")?;
@@ -331,20 +333,20 @@ pub fn scan_git(options: &ScanOptions) -> Result<Report, String> {
                 .get(source.unwrap_or(path))
                 .filter(|e| e.mode != "120000" && e.mode != "160000");
             let lines = old
-                .map(|old| added_lines(&root, &old.oid, &e.oid))
+                .map(|old| added_lines(root, &old.oid, &e.oid))
                 .transpose()?;
-            read_entry(&root, e, &mut report, limit, None, lines.as_ref())?;
+            read_entry(root, e, &mut report, limit, None, lines.as_ref())?;
         }
     } else {
         let mut paths = Vec::new();
-        for e in index(&root)? {
+        for e in index(root)? {
             if e.mode == "160000" {
                 skip(&mut report, &e.path, "submodule");
             } else {
                 paths.push(PathBuf::from(e.path));
             }
         }
-        scan_tracked_paths(&mut report, &root, paths, limit)?;
+        scan_tracked_paths(&mut report, root, paths, limit)?;
     }
     Ok(report)
 }

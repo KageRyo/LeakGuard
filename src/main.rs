@@ -36,6 +36,9 @@ struct Args {
     output: Option<PathBuf>,
     #[arg(long, default_value = "10485760")]
     max_file_bytes: usize,
+    /// Suppression config; defaults to .leakguard.toml at the repository root.
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
 }
 fn execute() -> Result<i32, String> {
     let cli = match Cli::try_parse() {
@@ -53,6 +56,7 @@ fn execute() -> Result<i32, String> {
         history: args.history,
         diff: args.diff,
         max_file_bytes: args.max_file_bytes,
+        config: args.config,
     })?;
     let rendered = render(&report, args.format, args.fail_on);
     if let Some(path) = args.output {

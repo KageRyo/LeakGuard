@@ -1,6 +1,7 @@
 use crate::{
     detect::{detect, is_artifact},
-    model::{Report, Skipped},
+    model::{Finding, Report, Skipped, SuppressedFinding, Suppression, SuppressionKind},
+    suppress::{Config, inline_marker},
 };
 use std::{
     collections::BTreeSet,
@@ -16,6 +17,7 @@ pub struct ScanOptions {
     pub history: bool,
     pub diff: Option<String>,
     pub max_file_bytes: usize,
+    pub config: Option<PathBuf>,
 }
 pub fn skip(report: &mut Report, path: &str, reason: &str) {
     report.skipped.push(Skipped {
@@ -45,12 +47,28 @@ pub fn add_bytes(
     };
     report.scanned_files += 1;
     report.scanned_artifacts += usize::from(is_artifact(path));
-    for mut f in detect(path, text) {
+    let found = detect(path, text);
+    if found.is_empty() {
+        return;
+    }
+    // detect() numbers lines with str::lines, so the same split finds each marker.
+    let physical: Vec<&str> = text.lines().collect();
+    for mut f in found {
         if lines.is_some_and(|set| !set.contains(&f.line)) {
             continue;
         }
         f.commit = commit.map(str::to_owned);
-        report.findings.push(f);
+        if physical.get(f.line - 1).is_some_and(|l| inline_marker(l)) {
+            report.suppressed.push(SuppressedFinding {
+                finding: f,
+                suppression: Suppression {
+                    kind: SuppressionKind::Inline,
+                    reason: None,
+                },
+            });
+        } else {
+            report.findings.push(f);
+        }
     }
 }
 pub fn path_string(path: &Path) -> Result<String, String> {
@@ -152,12 +170,30 @@ pub fn scan_tracked_paths(
     }
     Ok(())
 }
+fn order(f: &Finding) -> (&str, usize, usize, Option<&str>, &str) {
+    (
+        f.path.as_str(),
+        f.line,
+        f.column,
+        f.commit.as_deref(),
+        f.rule_id.as_str(),
+    )
+}
 pub fn scan(options: &ScanOptions) -> Result<Report, String> {
     if options.max_file_bytes == 0 || options.max_file_bytes == usize::MAX {
         return Err("invalid file size limit".into());
     }
-    let mut report = if options.paths.is_empty() {
-        crate::git::scan_git(options)?
+    let current = std::env::current_dir().map_err(|_| "cannot determine current directory")?;
+    let git_mode = options.paths.is_empty();
+    // Explicit paths work without Git, so their config falls back to the current directory.
+    let root = if git_mode {
+        crate::git::toplevel(&current)?
+    } else {
+        crate::git::toplevel(&current).unwrap_or_else(|_| current.clone())
+    };
+    let config = Config::load(&root, options.config.as_deref())?;
+    let mut report = if git_mode {
+        crate::git::scan_git(options, &root)?
     } else {
         let mut r = Report {
             mode: "paths".into(),
@@ -171,10 +207,13 @@ pub fn scan(options: &ScanOptions) -> Result<Report, String> {
         }
         r
     };
-    report.findings.sort_by(|a, b| {
-        (&a.path, a.line, a.column, &a.commit, &a.rule_id)
-            .cmp(&(&b.path, b.line, b.column, &b.commit, &b.rule_id))
-    });
+    if let Some(config) = &config {
+        config.apply(&mut report, if git_mode { &root } else { &current });
+    }
+    report.findings.sort_by(|a, b| order(a).cmp(&order(b)));
+    report
+        .suppressed
+        .sort_by(|a, b| order(&a.finding).cmp(&order(&b.finding)));
     report
         .skipped
         .sort_by(|a, b| (&a.path, &a.reason).cmp(&(&b.path, &b.reason)));
