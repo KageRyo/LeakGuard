@@ -68,10 +68,11 @@ pub fn render(report: &Report, format: Format, threshold: Confidence) -> String 
                 "WARNING"
             };
             let mut text = format!(
-                "{state}: {} files scanned, {} artifact/config files, {} potential secrets, {} skipped\n",
+                "{state}: {} files scanned, {} artifact/config files, {} potential secrets, {} suppressed, {} skipped\n",
                 report.scanned_files,
                 report.scanned_artifacts,
                 report.findings.len(),
+                report.suppressed.len(),
                 report.skipped.len()
             );
             for f in &report.findings {
@@ -139,9 +140,10 @@ pub fn render(report: &Report, format: Format, threshold: Confidence) -> String 
                 ));
             }
             text.push_str(&format!(
-                "LeakGuard: {} files scanned; {} potential secrets; {} skipped\n",
+                "LeakGuard: {} files scanned; {} potential secrets; {} suppressed; {} skipped\n",
                 report.scanned_files,
                 report.findings.len(),
+                report.suppressed.len(),
                 report.skipped.len()
             ));
             text
@@ -170,7 +172,7 @@ pub fn render(report: &Report, format: Format, threshold: Confidence) -> String 
                 "runs":[{"tool":{"driver":{"name":"LeakGuard","version":env!("CARGO_PKG_VERSION"),"informationUri":"https://github.com/KageRyo/LeakGuard","rules":descriptors}},
                     "columnKind":"unicodeCodePoints", "results":results,
                     "invocations":[{"executionSuccessful":true,"toolExecutionNotifications":notifications}],
-                    "properties":{"mode":report.mode,"scannedFiles":report.scanned_files,"scannedArtifacts":report.scanned_artifacts,"skippedCount":report.skipped.len()}}]
+                    "properties":{"mode":report.mode,"scannedFiles":report.scanned_files,"scannedArtifacts":report.scanned_artifacts,"skippedCount":report.skipped.len(),"suppressedCount":report.suppressed.len()}}]
             })).expect("serializable SARIF") + "\n"
         }
     }

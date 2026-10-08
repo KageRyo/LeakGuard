@@ -157,3 +157,47 @@ fn linked_directory_ancestors_are_skipped() {
     assert_eq!(r["scanned_files"], 0);
     assert_eq!(r["skipped"][0]["reason"], "symlink");
 }
+#[test]
+fn reports_count_suppressed_findings_without_listing_them() {
+    let d = tempdir().unwrap();
+    fs::write(
+        d.path().join("a.txt"),
+        format!("{} # leakguard:allow\n", token()),
+    )
+    .unwrap();
+    let o = run(d.path(), &["scan", "a.txt"]);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(o.stdout).unwrap(),
+        "PASS: 1 files scanned, 0 artifact/config files, 0 potential secrets, 1 suppressed, 0 skipped\n"
+    );
+    let o = run(d.path(), &["scan", "a.txt", "--format", "annotations"]);
+    assert_eq!(
+        String::from_utf8(o.stdout).unwrap(),
+        "LeakGuard: 1 files scanned; 0 potential secrets; 1 suppressed; 0 skipped\n"
+    );
+    let o = run(d.path(), &["scan", "a.txt", "--format", "sarif"]);
+    let s: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert!(s["runs"][0]["results"].as_array().unwrap().is_empty());
+    assert!(
+        s["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(s["runs"][0]["properties"]["suppressedCount"], 1);
+    let o = run(d.path(), &["scan", "a.txt", "--format", "json"]);
+    let j: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    for key in [
+        "rule_id",
+        "name",
+        "path",
+        "line",
+        "column",
+        "score",
+        "confidence",
+        "reasons",
+    ] {
+        assert!(!j["suppressed"][0][key].is_null(), "{key}");
+    }
+}
