@@ -13,7 +13,7 @@ jobs:
       - name: Prepare synthetic fixtures
         run: python3 scripts/action-smoke-fixture.py seed
       - name: Clean input through published version
-        uses: KageRyo/LeakGuard@v0.1.0
+        uses: KageRyo/LeakGuard@v0.2.0
         with:
           paths: .superpowers/action-smoke/clean.txt
           format: json
@@ -21,7 +21,7 @@ jobs:
       - name: Finding through published version
         id: finding
         continue-on-error: true
-        uses: KageRyo/LeakGuard@v0.1.0
+        uses: KageRyo/LeakGuard@v0.2.0
         with:
           paths: .superpowers/action-smoke/secret.log
           format: sarif

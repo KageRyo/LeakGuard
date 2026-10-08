@@ -4,22 +4,13 @@
 
 Lightweight secret & credential leakage guard for CI pipelines.
 
-LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and
-artifacts for accidentally exposed credentials. It runs offline with no server,
-database, LLM, provider API calls, or sibling-project dependencies.
+LeakGuard scans source code, configs, logs, fixtures, snapshots, notebooks and artifacts for accidentally exposed credentials. It runs offline with no server, database, LLM, provider API calls, or sibling-project dependencies.
 
-**Version:** v0.1.0. The [GitHub release](https://github.com/KageRyo/LeakGuard/releases)
-provides Linux x86_64, Windows x86_64 and macOS ARM64 archives with `SHA256SUMS`;
-the composite Action downloads and verifies the matching Linux archive.
+**Version:** v0.2.0. The [GitHub release](https://github.com/KageRyo/LeakGuard/releases) provides Linux x86_64, Windows x86_64 and macOS ARM64 archives with `SHA256SUMS`; the composite Action downloads and verifies the matching Linux archive.
 
 ## Why LeakGuard?
 
-Provider-oriented tools such as Gitleaks and GitHub Secret Scanning remain useful.
-LeakGuard concentrates on contextual exposure: a password in a JSON dump,
-a Bearer header in a debug log, or credentials in generated test artifacts.
-A small curated pattern set, entropy evidence and credential context produce
-explainable confidence scores. LeakGuard complements existing scanning; it does
-not claim their rule breadth, validate live credentials, or replace rotation.
+Provider-oriented tools such as Gitleaks and GitHub Secret Scanning remain useful. LeakGuard concentrates on contextual exposure: a password in a JSON dump, a Bearer header in a debug log, or credentials in generated test artifacts. A small curated pattern set, entropy evidence and credential context produce explainable confidence scores. LeakGuard complements existing scanning; it does not claim their rule breadth, validate live credentials, or replace rotation.
 
 ## Install from source
 
@@ -43,38 +34,16 @@ leakguard scan --fail-on medium
 leakguard scan --format json --output leakguard.json
 leakguard scan --format sarif --output leakguard.sarif
 leakguard scan --format annotations
+leakguard scan --config ci/leakguard.toml  # explicit suppression config
 ```
 
-Git modes are mutually exclusive and cannot be combined with explicit paths.
-Default scans require a repository; outside Git, pass paths explicitly. Deleted
-tracked files are skipped. History covers HEAD-reachable commits, not every ref;
-shallow clones only cover fetched history and produce a warning. Fetch the base
-and shared history before a diff scan. `--diff BASE` compares the common ancestor
-from `git merge-base BASE HEAD` with HEAD, so credentials removed upstream but
-retained on a diverged PR branch are not mistaken for PR additions. No available
-merge base (including insufficient shallow history) is an error with exit 2.
-History findings carry their commit ID. Repeated unchanged
-blobs at the same path are scanned once. Diff scans inspect added lines only,
-retain destination line numbers, and exclude pure renames/deletions.
+Git modes are mutually exclusive and cannot be combined with explicit paths. Default scans require a repository; outside Git, pass paths explicitly. Deleted tracked files are skipped. History covers HEAD-reachable commits, not every ref; shallow clones only cover fetched history and produce a warning. Fetch the base and shared history before a diff scan. `--diff BASE` compares the common ancestor from `git merge-base BASE HEAD` with HEAD, so credentials removed upstream but retained on a diverged PR branch are not mistaken for PR additions. No available merge base (including insufficient shallow history) is an error with exit 2. History findings carry their commit ID. Repeated unchanged blobs at the same path are scanned once. Diff scans inspect added lines only, retain destination line numbers, and exclude pure renames/deletions.
 
-Explicit directory scans include dotfiles and ignored text. They exclude `.git`
-internals and never follow symlinks. Overlapping paths are deduplicated. Files
-larger than 10 MiB, binary files, invalid UTF-8 and symlinks are skipped and
-accounted for; configure the limit with `--max-file-bytes`. JSON, YAML and notebooks
-are scanned as text, without parsing or execution. Archives are not unpacked.
+Explicit directory scans include dotfiles and ignored text. They exclude `.git` internals and never follow symlinks. Overlapping paths are deduplicated. Files larger than 10 MiB, binary files, invalid UTF-8 and symlinks are skipped and accounted for; configure the limit with `--max-file-bytes`. JSON, YAML and notebooks are scanned as text, without parsing or execution. Archives are not unpacked.
 
 ## Detection and scores
 
-Rules cover AWS access-key IDs, GitHub token families, OpenAI-style keys, Google
-API keys, structurally plausible JWTs, PEM private-key headers, credential-bearing
-database URLs, and contextual credentials. These are syntax checks, not proof
-that a credential is real or active. Context includes quoted JSON keys,
-assignments, YAML mappings, Bearer and Basic headers, and keys such as `password`,
-`secret`, `api_key`, `token`, `authorization` and `private_key`.
-Environment prefixes such as `DB_PASSWORD`, `client_secret` and
-`AWS_SECRET_ACCESS_KEY` are recognized. Generic multiline YAML scalar extraction
-is outside v0.1; scalar markers alone are not credentials. Strong provider and PEM
-patterns are still detected on their own lines.
+Rules cover AWS access-key IDs, GitHub token families, OpenAI-style keys, Google API keys, structurally plausible JWTs, PEM private-key headers, credential-bearing database URLs, and contextual credentials. These are syntax checks, not proof that a credential is real or active. Context includes quoted JSON keys, assignments, YAML mappings, Bearer and Basic headers, and keys such as `password`, `secret`, `api_key`, `token`, `authorization` and `private_key`. Environment prefixes such as `DB_PASSWORD`, `client_secret` and `AWS_SECRET_ACCESS_KEY` are recognized. Generic multiline YAML scalar extraction is outside v0.2; scalar markers alone are not credentials. Strong provider and PEM patterns are still detected on their own lines.
 
 | Evidence | Score |
 | --- | ---: |
@@ -84,18 +53,9 @@ patterns are still detected on their own lines.
 | At least 20 characters and entropy >= 3.5 bits/character | +15 |
 | Artifact/config path | +5 |
 
-Scores are capped at 100. HIGH is >=70; MEDIUM is 40–69; LOW is below 40.
-Generic candidates below 40 are discarded. Obvious placeholders and template
-references are suppressed; real-looking credentials in fixtures or docs are
-still detected. Entropy alone does not flag random IDs or hashes. Overlapping
-matches are reported once under the strongest rule. Scores are heuristics, not
-probabilities. Artifact paths are evidence of exposure location, not AI authorship.
+Scores are capped at 100. HIGH is >=70; MEDIUM is 40–69; LOW is below 40. Generic candidates below 40 are discarded. Obvious placeholders and template references are not reported; real-looking credentials in fixtures or docs are still detected. Entropy alone does not flag random IDs or hashes. Overlapping matches are reported once under the strongest rule. Scores are heuristics, not probabilities. Artifact paths are evidence of exposure location, not AI authorship.
 
-Reports contain paths, one-based line/column positions, rule IDs, confidence,
-score, reasons and optional commit IDs. They contain no matched credential values,
-input snippets or secret hashes. Paths are metadata: callers should avoid placing
-secrets in filenames. Text escapes control characters; annotations escape workflow
-command data; SARIF uses percent-encoded file URIs and Unicode code-point columns.
+Reports contain paths, one-based line/column positions, rule IDs, confidence, score, reasons and optional commit IDs. They contain no matched credential values, input snippets or secret hashes. Paths are metadata: callers should avoid placing secrets in filenames. Text escapes control characters; annotations escape workflow command data; SARIF uses percent-encoded file URIs and Unicode code-point columns.
 
 | Exit | Meaning |
 | --- | --- |
@@ -103,22 +63,36 @@ command data; SARIF uses percent-encoded file URIs and Unicode code-point column
 | 1 | Completed; findings meet the failure threshold |
 | 2 | Invalid arguments, input/Git failures, or report write failure |
 
-Text prints PASS for no findings, WARNING for below-threshold findings, and FAIL
-for threshold findings. Skips and shallow-history warnings are always reported;
-a PASS only describes the inputs actually scanned, not skipped content.
+Text prints PASS for no findings, WARNING for below-threshold findings, and FAIL for threshold findings. Skips and shallow-history warnings are always reported; a PASS only describes the inputs actually scanned, not skipped content.
+
+## Suppress intentional findings
+
+Mark a deliberate fixture by adding `leakguard:allow` anywhere on the finding's line, in any comment syntax. Every finding on that line is suppressed. Text after the marker is for reviewers and is never copied into reports. The marker is exact and case-sensitive. In diff mode it must be on an added line.
+
+```python
+TOKEN = "ghp_..."  # leakguard:allow synthetic fixture
+```
+
+For files that cannot carry comments, such as JSON, generated logs or historical blobs, add `.leakguard.toml` at the repository root. Outside Git, put it in the current directory. You can also pass `--config PATH`, which is resolved from the current directory.
+
+```toml
+[[allow]]
+paths = ["tests/fixtures/**", "snapshots/*.json"]   # globs relative to this file; * stays within a directory, ** crosses directories
+rules = ["github-token", "jwt"]                     # optional rule IDs; omit to match every rule
+reason = "synthetic credentials used by tests"      # required
+```
+
+A finding is suppressed when any entry matches. Within an entry, an omitted `paths` or `rules` matches everything, and specified conditions must both match. Rule IDs are `aws-access-key`, `github-token`, `openai-key`, `google-api-key`, `private-key`, `database-url`, `jwt` and `context-credential`.
+
+An invalid config exits 2 and names only the entry and field. Invalid configs include: unknown keys or rule IDs, a missing reason, an entry without `paths` or `rules`, empty arrays, and absolute, `..` or trailing-`/` patterns (use `dir/**`). A missing default config means no suppression. A missing `--config` file is an error. A symlinked config is never followed.
+
+Suppressed findings never affect PASS/WARNING/FAIL or the exit code. Text and annotation summaries report their count. JSON lists them under `suppressed` with `suppression.kind` (`inline` or `config`) and the config entry's `reason`. SARIF omits them from `results`, because GitHub's SARIF documentation does not list suppressions among the properties code scanning uses, and records `suppressedCount` in run properties. The config is read from the checked-out working tree. When a diff-mode scan sees the change modify the config, it adds the warning `This change modifies .leakguard.toml; review new suppressions` so reviewers notice new suppressions.
 
 ## GitHub Action
 
-The composite Action is Linux x86_64 only. It downloads the version matching
-`action-version.txt`, checks `SHA256SUMS` before extraction, and runs the CLI.
-Windows/macOS users can run the CLI directly. Action inputs are passed as data,
-without shell evaluation. It preserves scanner exit codes and emits redacted
-annotations by default. It does not upload reports or request write permissions.
+The composite Action is Linux x86_64 only. It downloads the version matching `action-version.txt`, checks `SHA256SUMS` before extraction, and runs the CLI. Windows/macOS users can run the CLI directly. Action inputs are passed as data, without shell evaluation. It preserves scanner exit codes and emits redacted annotations by default. It does not upload reports or request write permissions.
 
-Use **diff mode for a pull request gate**, with the PR head checked out and its
-base commit fetched. Tracked mode is a full working-tree audit; history mode is
-for investigating HEAD-reachable historical exposure. The default CLI/Action
-mode remains tracked for explicit full-repository scans.
+Use **diff mode for a pull request gate**, with the PR head checked out and its base commit fetched. Tracked mode is a full working-tree audit; history mode is for investigating HEAD-reachable historical exposure. The default CLI/Action mode remains tracked for explicit full-repository scans.
 
 A pull request gate:
 
@@ -135,18 +109,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: KageRyo/LeakGuard@v0.1.0
+      - uses: KageRyo/LeakGuard@v0.2.0
         with:
           mode: diff
           base: ${{ github.event.pull_request.base.sha }}
           fail-on: high
 ```
 
-For ignored/generated artifacts use newline-separated `paths` (no glob or shell
-expansion):
+For ignored/generated artifacts use newline-separated `paths` (no glob or shell expansion):
 
 ```yaml
-  - uses: KageRyo/LeakGuard@v0.1.0
+  - uses: KageRyo/LeakGuard@v0.2.0
     with:
       paths: |
         ./logs
@@ -159,21 +132,13 @@ expansion):
       sarif_file: leakguard.sarif
 ```
 
-The optional upload requires `security-events: write` in the consuming workflow.
-Use `@v1` to follow the v1 Action series, or pin `@v0.1.0` for the exact
-release shown above.
-Only use `if: always()` when the report was actually produced; input/download
-errors may leave no report. `mode: diff` requires `base`; combine explicit paths
-only with the default tracked mode. `max-file-bytes` defaults to 10485760.
+The optional upload requires `security-events: write` in the consuming workflow. Use `@v1` to follow the v1 Action series, or pin `@v0.2.0` for the exact release shown above. Only use `if: always()` when the report was actually produced; input/download errors may leave no report. `mode: diff` requires `base`; combine explicit paths only with the default tracked mode. `max-file-bytes` defaults to 10485760.
+
+The Action applies a repository `.leakguard.toml` automatically; set the `config` input to use another file.
 
 ## Threat model and limitations
 
-LeakGuard examines local text and Git objects. It never transmits candidates or
-verifies credentials. It cannot guarantee exhaustive detection. Binary/encrypted
-files, archives, images, arbitrary base64 decoding, custom organization rules,
-credential remediation and full provider registries are outside v0.1. A JWT
-pattern checks structure only. A PEM header can flag truncated key material.
-Keep your provider scanning and push protection enabled and rotate exposed secrets.
+LeakGuard examines local text and Git objects. It never transmits candidates or verifies credentials. It cannot guarantee exhaustive detection. Binary/encrypted files, archives, images, arbitrary base64 decoding, custom detection rules, baseline files, credential remediation and full provider registries are outside v0.2. A JWT pattern checks structure only. A PEM header can flag truncated key material. Keep your provider scanning and push protection enabled and rotate exposed secrets.
 
 ## Development
 
@@ -185,10 +150,4 @@ cargo build --release --locked
 python3 scripts/test-action-integration.py
 ```
 
-Tests use synthetic credentials, real temporary Git repositories, and a local HTTP
-release server. See [design](docs/superpowers/specs/2026-10-07-leakguard-design.md)
-and [implementation plan](docs/superpowers/plans/2026-10-07-leakguard.md).
-See [validation evidence and delivery boundaries](docs/validation.md) for the
-tested scope and checks that remain dependent on remote CI or publication.
-New commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
-Licensed under [Apache-2.0](LICENSE).
+Tests use synthetic credentials, real temporary Git repositories, and a local HTTP release server. See [design](docs/superpowers/specs/2026-10-07-leakguard-design.md) and [implementation plan](docs/superpowers/plans/2026-10-07-leakguard.md). See [validation evidence and delivery boundaries](docs/validation.md) for the tested scope and checks that remain dependent on remote CI or publication. New commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/). Licensed under [Apache-2.0](LICENSE).
