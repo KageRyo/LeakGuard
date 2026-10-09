@@ -67,13 +67,13 @@ Text prints PASS for no findings, WARNING for below-threshold findings, and FAIL
 
 ## Suppress intentional findings
 
-Mark a deliberate fixture by adding `leakguard:allow` anywhere on the finding's line, in any comment syntax. Every finding on that line is suppressed. Text after the marker is for reviewers and is never copied into reports. The marker is exact and case-sensitive. In diff mode it must be on an added line.
+Mark a deliberate fixture by adding `leakguard:allow` anywhere on the finding's line, in any comment syntax. Every finding on that line is suppressed. Text after the marker is for reviewers and is never copied into reports. The marker is exact and case-sensitive. In diff mode it must be on an added line. Generated output ignores the marker, because a log line can echo untrusted text next to a real token: `.log` and `test-output.txt` files and anything under a `logs`, `artifacts`, `snapshots` or `generated` directory. Suppress those with `.leakguard.toml`.
 
 ```python
 TOKEN = "ghp_..."  # leakguard:allow synthetic fixture
 ```
 
-For files that cannot carry comments, such as JSON, generated logs or historical blobs, add `.leakguard.toml` at the repository root. Outside Git, put it in the current directory. You can also pass `--config PATH`, which is resolved from the current directory.
+For generated output and files that cannot carry comments, such as JSON or historical blobs, add `.leakguard.toml` at the repository root. Outside Git, put it in the current directory. You can also pass `--config PATH`, which is resolved from the current directory.
 
 ```toml
 [[allow]]

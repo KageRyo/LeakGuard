@@ -288,6 +288,40 @@ fn inline_marker_works_with_any_comment_style_and_crlf_but_is_case_sensitive() {
     assert_eq!(run(d.path(), &["upper.sh"]).status.code(), Some(1));
 }
 #[test]
+fn inline_marker_is_ignored_in_generated_output_but_config_still_applies() {
+    let d = tempdir().unwrap();
+    // A log line can echo attacker-controlled text next to a leaked token.
+    let line = format!("GET /login ua=\"leakguard:allow\" auth={}\n", token());
+    for path in [
+        "app.log",
+        "Build/Test.LOG",
+        "logs/a.txt",
+        "artifacts/run.txt",
+        "snapshots/a.snap",
+        "generated/a.rs",
+        "out/test-output.txt",
+    ] {
+        let file = d.path().join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, &line).unwrap();
+        assert_eq!(run(d.path(), &[path]).status.code(), Some(1), "{path}");
+    }
+    for path in ["fixtures/a.txt", "ci.yml", ".env.example", "notes.json"] {
+        let file = d.path().join(path);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(file, &line).unwrap();
+        assert_eq!(run(d.path(), &[path]).status.code(), Some(0), "{path}");
+    }
+    fs::write(
+        d.path().join(".leakguard.toml"),
+        "[[allow]]\npaths = [\"logs/**\"]\nreason = \"recorded fixtures\"\n",
+    )
+    .unwrap();
+    let o = run(d.path(), &["logs/a.txt", "--format", "json"]);
+    assert_eq!(o.status.code(), Some(0));
+    assert_eq!(json(&o)["suppressed"][0]["suppression"]["kind"], "config");
+}
+#[test]
 fn inline_reason_never_reaches_any_report() {
     let d = tempdir().unwrap();
     fs::write(

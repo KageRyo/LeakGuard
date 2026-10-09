@@ -1,5 +1,5 @@
 use crate::{
-    detect::{detect, is_artifact},
+    detect::{detect, is_artifact, is_generated},
     model::{Finding, Report, Skipped, SuppressedFinding, Suppression, SuppressionKind},
     suppress::{Config, inline_marker},
 };
@@ -52,7 +52,12 @@ pub fn add_bytes(
         return;
     }
     // detect() numbers lines with str::lines, so the same split finds each marker.
-    let physical: Vec<&str> = text.lines().collect();
+    // Generated output can echo untrusted text, so only the config can suppress it.
+    let physical: Vec<&str> = if is_generated(path) {
+        Vec::new()
+    } else {
+        text.lines().collect()
+    };
     for mut f in found {
         if lines.is_some_and(|set| !set.contains(&f.line)) {
             continue;

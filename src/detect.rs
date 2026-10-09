@@ -33,25 +33,21 @@ pub fn known_rule(id: &str) -> bool {
     id == "context-credential" || RULES.iter().any(|r| r.id == id)
 }
 
+/// Tool-written output such as logs, which can echo untrusted text verbatim.
+pub fn is_generated(path: &str) -> bool {
+    let p = path.to_ascii_lowercase().replace('\\', "/");
+    p.split('/')
+        .any(|s| matches!(s, "logs" | "artifacts" | "snapshots" | "generated"))
+        || p.ends_with(".log")
+        || p.ends_with("test-output.txt")
+}
 pub fn is_artifact(path: &str) -> bool {
     let p = path.to_ascii_lowercase().replace('\\', "/");
-    p.split('/').any(|s| {
-        matches!(
-            s,
-            "logs" | "artifacts" | "snapshots" | "fixtures" | "generated"
-        )
-    }) || [
-        ".log",
-        ".env",
-        ".local",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".ipynb",
-        "test-output.txt",
-    ]
-    .iter()
-    .any(|s| p.ends_with(s))
+    is_generated(path)
+        || p.split('/').any(|s| s == "fixtures")
+        || [".env", ".local", ".json", ".yaml", ".yml", ".ipynb"]
+            .iter()
+            .any(|s| p.ends_with(s))
         || p.rsplit('/').next().is_some_and(|s| s.starts_with(".env."))
 }
 fn placeholder(value: &str) -> bool {
