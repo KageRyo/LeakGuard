@@ -168,6 +168,15 @@ fn invalid_configs_fail_without_quoting_content() {
             "[[allow]]\npaths = [\"CANARY/\"]\nreason = \"r\"\n",
             format!("{p}: allow[0].paths[0] must not end with /; use a /** suffix"),
         ),
+        // globset reads `\` as a separator on Windows but as an escape elsewhere.
+        (
+            "[[allow]]\npaths = ['CANARY\\**']\nreason = \"r\"\n",
+            format!("{p}: allow[0].paths[0] must use / as the path separator"),
+        ),
+        (
+            "[[allow]]\npaths = ['..\\CANARY']\nreason = \"r\"\n",
+            format!("{p}: allow[0].paths[0] must use / as the path separator"),
+        ),
         (
             "[[allow]]\npaths = [\".\"]\nreason = \"r\"\n",
             format!("{p}: allow[0].paths[0] must not be empty"),

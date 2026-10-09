@@ -85,6 +85,10 @@ fn glob(pattern: &str) -> Result<Glob, &'static str> {
     if pattern.starts_with(['/', '\\']) || drive || pattern.split('/').any(|c| c == "..") {
         return Err("must be a relative path without ..");
     }
+    // globset reads `\` as a separator on Windows but as an escape elsewhere.
+    if pattern.contains('\\') {
+        return Err("must use / as the path separator");
+    }
     // A gitignore-style directory pattern would silently match no file.
     if pattern.ends_with('/') {
         return Err("must not end with /; use a /** suffix");
