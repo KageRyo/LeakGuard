@@ -1,6 +1,6 @@
 # LeakGuard v0.2.0 pre-release validation
 
-Date: 2026-10-08 (Asia/Taipei). Branch: `feat/v0.2-suppression`, based on `ad5a0a6` (main after the v0.1.0 release). Tested implementation commit: `d74265fa66b72f69a34445bc63d009dadec9911b`. This record is committed on top of it and changes no executable code.
+Date: 2026-10-09 (Asia/Taipei). Branch: `feat/v0.2-suppression`, based on `ad5a0a6` (main after the v0.1.0 release). Tested implementation commit: `c1c9f1ae34096691374c9d298998c3b6909a874c`. This record is committed on top of it and changes no executable code.
 
 v0.2.0 adds finding suppression: same-line `leakguard:allow` markers and a validated `.leakguard.toml` allow list. Suppressed findings never affect the exit code. Text and annotation summaries count them, JSON lists them under `suppressed`, and SARIF omits them from `results` while recording `suppressedCount`.
 
@@ -20,13 +20,13 @@ actionlint -shellcheck=
 cargo run --release --locked --quiet -- scan
 ```
 
-The Rust suites have 58 passing tests: 10 CLI, 10 detection, 21 Git modes, 1 report location and 16 suppression. The 38 v0.1.0 tests pass unchanged. The Action suite has 9 passing tests; two are new and cover the `config` input, default discovery and invalid configs.
+The Rust suites have 59 passing tests: 10 CLI, 10 detection, 21 Git modes, 1 report location and 17 suppression. The 38 v0.1.0 tests pass unchanged. The Action suite has 9 passing tests; two are new and cover the `config` input, default discovery and invalid configs.
 
 ## Acceptance evidence
 
 | Requirement | Evidence |
 | --- | --- |
-| Inline markers | Every finding on a marked line is suppressed. The marker works with `#`, `//` and `<!--` comments and with CRLF lines. It is case-sensitive, and a marker on another line has no effect. Marker text after the token never appears in text, JSON, SARIF or annotations output (canary test). |
+| Inline markers | Every finding on a marked line is suppressed. The marker works with `#`, `//` and `<!--` comments and with CRLF lines. It is case-sensitive, and a marker on another line has no effect. Marker text after the token never appears in text, JSON, SARIF or annotations output (canary test). Generated output ignores markers, because a log line can echo attacker-controlled text next to a real token. That covers `.log` and `test-output.txt` files and `logs`, `artifacts`, `snapshots` or `generated` directories, case-insensitive. A log line with the marker beside a GitHub token fails with exit 1. Authored artifact/config files (`fixtures/`, YAML, JSON, `.env*`) keep markers, and config still suppresses generated output. |
 | Config validation | Each invalid shape exits 2 with an entry/field message, and a canary confirms that no config content is quoted. Invalid shapes: missing `paths`/`rules`, missing or blank reason, empty arrays, unknown rule or key, absolute, `..`, trailing-`/` or invalid glob patterns, TOML syntax errors, non-UTF-8 files, directories, and symlinked configs. A UTF-8 BOM and an empty file are accepted. |
 | Matching | `*` stays within a directory and `**` crosses directories. `./`, `../` and absolute explicit paths normalize to the config directory. Files outside it match only rule-only entries. `paths` and `rules` must both match, and an inline marker takes precedence over config. |
 | Discovery | `.leakguard.toml` is found at the Git top level, or in the current directory outside Git. A relative `--config` path resolves from the current directory, and its globs are relative to its own directory. A missing explicit config exits 2. |
@@ -34,9 +34,9 @@ The Rust suites have 58 passing tests: 10 CLI, 10 detection, 21 Git modes, 1 rep
 | Reports and exits | All-suppressed input is PASS with exit 0, and an unsuppressed HIGH finding still exits 1. Text and annotation summaries count suppressed findings. SARIF has empty `results` and `rules` plus `suppressedCount`. JSON suppressed entries keep every finding field plus `suppression`. |
 | SARIF schema | A suppressed-only report and a finding report both validated against the official OASIS SARIF 2.1.0 JSON schema. |
 | Action | The `config` input is forwarded as `--config=<value>` (a leading-dash value stays data). A repository config applies without the input. Invalid configs exit 2. |
-| Dogfooding | `.leakguard.toml` suppresses `tests/**`. One inline marker covers the detector false positive at `scripts/action-smoke-fixture.py:17`. The self-scan reports `WARNING: 34 files scanned, 4 artifact/config files, 5 potential secrets, 32 suppressed, 0 skipped` and exits 0. CI runs it on Linux, Windows and macOS. |
+| Dogfooding | `.leakguard.toml` suppresses `tests/**`. One inline marker covers the detector false positive at `scripts/action-smoke-fixture.py:17`. The self-scan reports `WARNING: 34 files scanned, 4 artifact/config files, 7 potential secrets, 33 suppressed, 0 skipped` and exits 0. CI runs it on Linux, Windows and macOS. |
 
-The five remaining MEDIUM findings are detector false positives on prose and code, such as "Bearer header" and `let password = value`. They are the planned detector-precision follow-up, not suppression targets.
+The seven remaining MEDIUM findings are detector false positives on prose and code, such as "Bearer header" and `let password = value`. Two of them are this record quoting those examples. They are the planned detector-precision follow-up, not suppression targets.
 
 ## Release delivery gates
 
